@@ -62,7 +62,8 @@ class SupabaseClient {
     this.headers = {
       'Content-Type': 'application/json',
       'apikey': key,
-      'Authorization': `Bearer ${key}`
+      'Authorization': `Bearer ${key}`,
+      'Prefer': 'return=representation'  // Importante per v52
     };
   }
 
@@ -80,24 +81,45 @@ class SupabaseClient {
     
     if (params.toString()) url += `?${params.toString()}`;
     
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: this.headers
-    });
-    
-    if (!response.ok) throw new Error(`Query failed: ${response.statusText}`);
-    return response.json();
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: this.headers
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Query failed: ${response.status} - ${errorText}`);
+      }
+      return response.json();
+    } catch (error) {
+      console.error('Supabase query error:', error);
+      throw error;
+    }
   }
 
   async insert(table, data) {
-    const response = await fetch(`${this.url}/rest/v1/${table}`, {
-      method: 'POST',
-      headers: this.headers,
-      body: JSON.stringify(data)
-    });
-    
-    if (!response.ok) throw new Error(`Insert failed: ${response.statusText}`);
-    return response.json();
+    try {
+      const response = await fetch(`${this.url}/rest/v1/${table}`, {
+        method: 'POST',
+        headers: {
+          ...this.headers,
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(Array.isArray(data) ? data : [data])
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Insert failed: ${response.status} - ${errorText}`);
+      }
+      
+      const result = await response.json();
+      return Array.isArray(data) ? result : result[0];
+    } catch (error) {
+      console.error('Supabase insert error:', error);
+      throw error;
+    }
   }
 
   async update(table, data, conditions) {
@@ -110,14 +132,25 @@ class SupabaseClient {
     
     url += `?${params.toString()}`;
     
-    const response = await fetch(url, {
-      method: 'PATCH',
-      headers: this.headers,
-      body: JSON.stringify(data)
-    });
-    
-    if (!response.ok) throw new Error(`Update failed: ${response.statusText}`);
-    return response.json();
+    try {
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          ...this.headers,
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(data)
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Update failed: ${response.status} - ${errorText}`);
+      }
+      return response.json();
+    } catch (error) {
+      console.error('Supabase update error:', error);
+      throw error;
+    }
   }
 
   async delete(table, conditions) {
@@ -130,13 +163,21 @@ class SupabaseClient {
     
     url += `?${params.toString()}`;
     
-    const response = await fetch(url, {
-      method: 'DELETE',
-      headers: this.headers
-    });
-    
-    if (!response.ok) throw new Error(`Delete failed: ${response.statusText}`);
-    return response.json();
+    try {
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: this.headers
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Delete failed: ${response.status} - ${errorText}`);
+      }
+      return response.json();
+    } catch (error) {
+      console.error('Supabase delete error:', error);
+      throw error;
+    }
   }
 }
 
@@ -213,51 +254,58 @@ const ScoutPaymentApp = () => {
 
   // Setup gruppo (versione localStorage)
   const setupGroup = async (name, code = null) => {
-    setIsLoading(true);
-    
-    try {
-      if (code) {
-        // Unisciti a gruppo esistente
-        const groups = await db.query('groups', { eq: { access_code: code } });
-        if (groups.length === 0) {
-          alert('Codice gruppo non valido');
-          return;
-        }
-        const group = groups[0];
-        setGroupId(group.id);
-        setGroupName(group.name);
-        localStorage.setItem('groupId', group.id);
-        localStorage.setItem('groupName', group.name);
-      } else {
-        // Crea nuovo gruppo
-        const accessCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-        const groupData = {
-          name,
-          access_code: accessCode,
-          created_at: new Date().toISOString()
-        };
-        
-        const newGroup = await db.insert('groups', groupData);
-        const group = newGroup[0];
-        setGroupId(group.id);
-        setGroupName(group.name);
-        localStorage.setItem('groupId', group.id);
-        localStorage.setItem('groupName', group.name);
-        
-        alert(`Gruppo creato! Codice di accesso: ${accessCode}\n\n${
-          useLocalStorage 
-            ? 'NOTA: In modalità locale, il codice funziona solo su questo browser.' 
-            : 'Condividi questo codice con gli altri capi per accedere al gruppo!'
-        }`);
+  setIsLoading(true);
+  
+  try {
+    if (code) {
+      // Unisciti a gruppo esistente
+      console.log('🔍 Cerco gruppo con codice:', code);
+      const groups = await db.query('groups', { eq: { access_code: code } });
+      console.log('📊 Risultato ricerca:', groups);
+      
+      if (!groups || groups.length === 0) {
+        alert('Codice gruppo non valido');
+        setIsLoading(false);
+        return;
       }
-      setShowGroupSetup(false);
-    } catch (error) {
-      console.error('Errore setup gruppo:', error);
-      alert(`Errore durante la configurazione del gruppo: ${error.message}`);
-    } finally {
-      setIsLoading(false);
+      const group = groups[0];
+      setGroupId(group.id);
+      setGroupName(group.name);
+      localStorage.setItem('groupId', group.id);
+      localStorage.setItem('groupName', group.name);
+    } else {
+      // Crea nuovo gruppo
+      const accessCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      console.log('🆕 Creo nuovo gruppo:', { name, accessCode });
+      
+      const groupData = {
+        name,
+        access_code: accessCode,
+        created_at: new Date().toISOString()
+      };
+      
+      const newGroup = await db.insert('groups', groupData);
+      console.log('✅ Gruppo creato:', newGroup);
+      
+      if (!newGroup) {
+        throw new Error('Errore nella creazione del gruppo');
+      }
+      
+      setGroupId(newGroup.id);
+      setGroupName(newGroup.name);
+      localStorage.setItem('groupId', newGroup.id);
+      localStorage.setItem('groupName', newGroup.name);
+      
+      alert(`Gruppo creato! Codice di accesso: ${accessCode}\n\nCondividi questo codice con gli altri capi per accedere al gruppo!`);
     }
-  };
+    setShowGroupSetup(false);
+  } catch (error) {
+    console.error('❌ Errore setup gruppo:', error);
+    alert(`Errore durante la configurazione del gruppo: ${error.message}`);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // Calcola i totali finanziari
   const calculateTotals = () => {
