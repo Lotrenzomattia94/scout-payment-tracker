@@ -294,6 +294,13 @@ const ScoutPaymentApp = () => {
   const [showAddAdvance, setShowAddAdvance] = useState(false);
   const [showAddIncome, setShowAddIncome] = useState(false);
 
+  // Debug helper
+  const addDebugInfo = (message) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setDebugInfo(prev => [...prev.slice(-9), `${timestamp}: ${message}`]);
+    console.log(`DEBUG: ${message}`);
+  };
+
   // Determine if we should use localStorage
   const useLocalStorage = useMemo(() => {
     return window.location.hostname === 'localhost' || 
@@ -309,14 +316,7 @@ const ScoutPaymentApp = () => {
     
     addDebugInfo(`Database client initialized: ${useLocalStorage ? 'LocalStorage' : 'Supabase'}`);
     return client;
-  }, [useLocalStorage]);
-
-  // Debug helper
-  const addDebugInfo = (message) => {
-    const timestamp = new Date().toLocaleTimeString();
-    setDebugInfo(prev => [...prev.slice(-9), `${timestamp}: ${message}`]);
-    console.log(`DEBUG: ${message}`);
-  };
+  }, [useLocalStorage, addDebugInfo]);
 
   // Monitor connection
   useEffect(() => {
@@ -345,7 +345,7 @@ const ScoutPaymentApp = () => {
         addDebugInfo(`Supabase connection test: ${connected ? 'SUCCESS' : 'FAILED'}`);
       });
     }
-  }, [db, useLocalStorage]);
+  }, [db, useLocalStorage, addDebugInfo]);
 
   // Load data from database
   const loadData = async () => {
@@ -397,7 +397,7 @@ const ScoutPaymentApp = () => {
     if (groupId) {
       loadData();
     }
-  }, [groupId, db]);
+  }, [groupId]);
 
   // Setup group
   const setupGroup = async (name, code = null) => {
