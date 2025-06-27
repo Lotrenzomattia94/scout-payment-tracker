@@ -543,9 +543,6 @@ const ScoutPaymentApp = () => {
       )}
     </div>
   );
-};
-
-export default ScoutPaymentApp;
 
   // Group Setup Modal
   const GroupSetupModal = () => {
@@ -584,202 +581,6 @@ export default ScoutPaymentApp;
                   placeholder="es. Scout Gruppo Roma 12"
                   className="w-full p-2 border rounded-md"
                 />
-              </div>
-              <button
-                onClick={() => setupGroup(name)}
-                disabled={!name || isLoading}
-                className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50"
-              >
-                {isLoading ? 'Creazione...' : 'Crea Gruppo'}
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Codice Gruppo</label>
-                <input
-                  type="text"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.toUpperCase())}
-                  placeholder="es. ABC123"
-                  className="w-full p-2 border rounded-md"
-                />
-              </div>
-              <button
-                onClick={() => setupGroup('', code)}
-                disabled={!code || isLoading}
-                className="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 disabled:opacity-50"
-              >
-                {isLoading ? 'Accesso...' : 'Unisciti al Gruppo'}
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  // Setup iniziale
-  if (showGroupSetup) {
-    return (
-      <div>
-        <GroupSetupModal />
-        <DebugPanel />
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-blue-600 text-white p-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Scout Payment Tracker</h1>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-sm">
-              {isOnline ? <Wifi size={16} /> : <WifiOff size={16} />}
-              {groupName}
-            </div>
-            <button
-              onClick={() => setShowGroupSetup(true)}
-              className="p-2 hover:bg-blue-700 rounded"
-              title="Cambia gruppo"
-            >
-              <Settings size={20} />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Status Bar */}
-      {useLocalStorage && (
-        <div className="bg-yellow-100 border-b border-yellow-200 px-4 py-2 text-yellow-800 text-sm">
-          ℹ️ Modalità Locale - Dati salvati nel browser
-        </div>
-      )}
-
-      {!useLocalStorage && (
-        <div className="bg-green-100 border-b border-green-200 px-4 py-2 text-green-800 text-sm">
-          🌐 Modalità Cloud - Sincronizzazione Supabase
-        </div>
-      )}
-
-      {isLoading && (
-        <div className="bg-blue-100 border-b border-blue-200 px-4 py-2 text-blue-800 text-sm">
-          🔄 Operazione in corso...
-        </div>
-      )}
-
-      {error && (
-        <div className="bg-red-100 border-b border-red-200 px-4 py-2 text-red-800 text-sm flex justify-between items-center">
-          <span>⚠️ {error}</span>
-          <button 
-            onClick={() => setError(null)} 
-            className="text-red-600 hover:text-red-800 ml-4"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-
-      {/* Debug Panel */}
-      <DebugPanel />
-
-      {/* Navigation */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="flex overflow-x-auto">
-          {[
-            { id: 'dashboard', icon: Home, label: 'Dashboard' },
-            { id: 'scouts', icon: Users, label: `Scout (${scouts.length})` },
-            { id: 'incomes', icon: Plus, label: `Entrate (${extraIncomes.length})` },
-            { id: 'expenses', icon: CreditCard, label: `Spese (${expenses.length})` },
-            { id: 'advances', icon: AlertCircle, label: `Anticipi (${advances.filter(a => !a.reimbursed).length})` }
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-6 py-4 whitespace-nowrap border-b-2 transition-colors font-medium ${
-                activeTab === tab.id
-                  ? 'border-blue-600 text-blue-600 bg-blue-50'
-                  : 'border-transparent text-gray-600 hover:text-blue-600 hover:bg-gray-50'
-              }`}
-            >
-              <tab.icon size={20} />
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="p-4">
-        {activeTab === 'dashboard' && (
-          <div className="space-y-6">
-            {/* Financial Summary */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-white p-6 rounded-lg shadow-sm border">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Conto Corrente</p>
-                    <p className="text-2xl font-bold text-blue-600">€{totals.bankTotal.toFixed(2)}</p>
-                  </div>
-                  <CreditCard className="text-blue-600" size={32} />
-                </div>
-              </div>
-              
-              <div className="bg-white p-6 rounded-lg shadow-sm border">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Cassa Contanti</p>
-                    <p className="text-2xl font-bold text-green-600">€{totals.cashTotal.toFixed(2)}</p>
-                  </div>
-                  <Banknote className="text-green-600" size={32} />
-                </div>
-              </div>
-              
-              <div className="bg-white p-6 rounded-lg shadow-sm border">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Totale Disponibile</p>
-                    <p className="text-2xl font-bold text-purple-600">€{totals.total.toFixed(2)}</p>
-                  </div>
-                  <DollarSign className="text-purple-600" size={32} />
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="bg-white p-6 rounded-lg shadow-sm border">
-              <h3 className="text-lg font-semibold mb-4">Azioni Rapide</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <button
-                  onClick={() => setShowAddScout(true)}
-                  className="flex items-center gap-2 p-3 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100"
-                >
-                  <Users size={20} />
-                  <span className="text-sm font-medium">Nuovo Scout</span>
-                </button>
-                <button
-                  onClick={() => setShowAddIncome(true)}
-                  className="flex items-center gap-2 p-3 bg-green-50 text-green-700 rounded-lg hover:bg-green-100"
-                >
-                  <Plus size={20} />
-                  <span className="text-sm font-medium">Nuova Entrata</span>
-                </button>
-                <button
-                  onClick={() => setShowAddExpense(true)}
-                  className="flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-lg hover:bg-red-100"
-                >
-                  <CreditCard size={20} />
-                  <span className="text-sm font-medium">Nuova Spesa</span>
-                </button>
-                <button
-                  onClick={() => setShowAddAdvance(true)}
-                  className="flex items-center gap-2 p-3 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100"
-                >
-                  <AlertCircle size={20} />
-                  <span className="text-sm font-medium">Nuovo Anticipo</span>
-                </button>
               </div>
             </div>
 
@@ -1208,3 +1009,201 @@ export default ScoutPaymentApp;
       )}
     </div>
   );
+};
+
+export default ScoutPaymentApp;  <button
+                onClick={() => setupGroup(name)}
+                disabled={!name || isLoading}
+                className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50"
+              >
+                {isLoading ? 'Creazione...' : 'Crea Gruppo'}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Codice Gruppo</label>
+                <input
+                  type="text"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.toUpperCase())}
+                  placeholder="es. ABC123"
+                  className="w-full p-2 border rounded-md"
+                />
+              </div>
+              <button
+                onClick={() => setupGroup('', code)}
+                disabled={!code || isLoading}
+                className="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 disabled:opacity-50"
+              >
+                {isLoading ? 'Accesso...' : 'Unisciti al Gruppo'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Setup iniziale - DENTRO la funzione del componente
+  if (showGroupSetup) {
+    return (
+      <div>
+        <GroupSetupModal />
+        <DebugPanel />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-blue-600 text-white p-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Scout Payment Tracker</h1>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 text-sm">
+              {isOnline ? <Wifi size={16} /> : <WifiOff size={16} />}
+              {groupName}
+            </div>
+            <button
+              onClick={() => setShowGroupSetup(true)}
+              className="p-2 hover:bg-blue-700 rounded"
+              title="Cambia gruppo"
+            >
+              <Settings size={20} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Status Bar */}
+      {useLocalStorage && (
+        <div className="bg-yellow-100 border-b border-yellow-200 px-4 py-2 text-yellow-800 text-sm">
+          ℹ️ Modalità Locale - Dati salvati nel browser
+        </div>
+      )}
+
+      {!useLocalStorage && (
+        <div className="bg-green-100 border-b border-green-200 px-4 py-2 text-green-800 text-sm">
+          🌐 Modalità Cloud - Sincronizzazione Supabase
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="bg-blue-100 border-b border-blue-200 px-4 py-2 text-blue-800 text-sm">
+          🔄 Operazione in corso...
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-100 border-b border-red-200 px-4 py-2 text-red-800 text-sm flex justify-between items-center">
+          <span>⚠️ {error}</span>
+          <button 
+            onClick={() => setError(null)} 
+            className="text-red-600 hover:text-red-800 ml-4"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Debug Panel */}
+      <DebugPanel />
+
+      {/* Navigation */}
+      <div className="bg-white shadow-sm border-b">
+        <div className="flex overflow-x-auto">
+          {[
+            { id: 'dashboard', icon: Home, label: 'Dashboard' },
+            { id: 'scouts', icon: Users, label: `Scout (${scouts.length})` },
+            { id: 'incomes', icon: Plus, label: `Entrate (${extraIncomes.length})` },
+            { id: 'expenses', icon: CreditCard, label: `Spese (${expenses.length})` },
+            { id: 'advances', icon: AlertCircle, label: `Anticipi (${advances.filter(a => !a.reimbursed).length})` }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-6 py-4 whitespace-nowrap border-b-2 transition-colors font-medium ${
+                activeTab === tab.id
+                  ? 'border-blue-600 text-blue-600 bg-blue-50'
+                  : 'border-transparent text-gray-600 hover:text-blue-600 hover:bg-gray-50'
+              }`}
+            >
+              <tab.icon size={20} />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="p-4">
+        {activeTab === 'dashboard' && (
+          <div className="space-y-6">
+            {/* Financial Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white p-6 rounded-lg shadow-sm border">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Conto Corrente</p>
+                    <p className="text-2xl font-bold text-blue-600">€{totals.bankTotal.toFixed(2)}</p>
+                  </div>
+                  <CreditCard className="text-blue-600" size={32} />
+                </div>
+              </div>
+              
+              <div className="bg-white p-6 rounded-lg shadow-sm border">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Cassa Contanti</p>
+                    <p className="text-2xl font-bold text-green-600">€{totals.cashTotal.toFixed(2)}</p>
+                  </div>
+                  <Banknote className="text-green-600" size={32} />
+                </div>
+              </div>
+              
+              <div className="bg-white p-6 rounded-lg shadow-sm border">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Totale Disponibile</p>
+                    <p className="text-2xl font-bold text-purple-600">€{totals.total.toFixed(2)}</p>
+                  </div>
+                  <DollarSign className="text-purple-600" size={32} />
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="bg-white p-6 rounded-lg shadow-sm border">
+              <h3 className="text-lg font-semibold mb-4">Azioni Rapide</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <button
+                  onClick={() => setShowAddScout(true)}
+                  className="flex items-center gap-2 p-3 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100"
+                >
+                  <Users size={20} />
+                  <span className="text-sm font-medium">Nuovo Scout</span>
+                </button>
+                <button
+                  onClick={() => setShowAddIncome(true)}
+                  className="flex items-center gap-2 p-3 bg-green-50 text-green-700 rounded-lg hover:bg-green-100"
+                >
+                  <Plus size={20} />
+                  <span className="text-sm font-medium">Nuova Entrata</span>
+                </button>
+                <button
+                  onClick={() => setShowAddExpense(true)}
+                  className="flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-lg hover:bg-red-100"
+                >
+                  <CreditCard size={20} />
+                  <span className="text-sm font-medium">Nuova Spesa</span>
+                </button>
+                <button
+                  onClick={() => setShowAddAdvance(true)}
+                  className="flex items-center gap-2 p-3 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100"
+                >
+                  <AlertCircle size={20} />
+                  <span className="text-sm font-medium">Nuovo Anticipo</span>
+                </button>
+              </div>
