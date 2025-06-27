@@ -1,60 +1,89 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Users, DollarSign, CreditCard, Banknote, AlertCircle, Check, X, Home, Settings, Wifi, WifiOff } from 'lucide-react';
 
 // Configurazione Supabase
 const SUPABASE_URL = 'https://tmmdcrjyjqnkeevcspwm.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRtbWRjcmp5anFua2VldmNzcHdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA5NDA4OTgsImV4cCI6MjA2NjUxNjg5OH0.WjQbevq8xnrJjk4wFM1F7uU0OLUaiyxErkaFw8SvaVw';
 
-// Client che usa localStorage come fallback
+// Client localStorage migliorato
 class LocalStorageClient {
+  constructor() {
+    this.isLocalStorage = true;
+  }
+
   async query(table, options = {}) {
-    const data = JSON.parse(localStorage.getItem(table) || '[]');
-    let result = [...data];
-    
-    if (options.eq) {
-      Object.entries(options.eq).forEach(([key, value]) => {
-        result = result.filter(item => item[key] == value);
-      });
+    try {
+      const data = JSON.parse(localStorage.getItem(table) || '[]');
+      let result = [...data];
+      
+      if (options.eq) {
+        Object.entries(options.eq).forEach(([key, value]) => {
+          result = result.filter(item => item[key] == value);
+        });
+      }
+      
+      console.log(`LocalStorage Query ${table}:`, result);
+      return result;
+    } catch (error) {
+      console.error(`LocalStorage Query Error for ${table}:`, error);
+      return [];
     }
-    
-    return result;
   }
 
   async insert(table, data) {
-    const existing = JSON.parse(localStorage.getItem(table) || '[]');
-    const newData = Array.isArray(data) ? data : [data];
-    const withIds = newData.map(item => ({
-      ...item,
-      id: item.id || Date.now() + Math.random()
-    }));
-    
-    const updated = [...existing, ...withIds];
-    localStorage.setItem(table, JSON.stringify(updated));
-    return withIds;
+    try {
+      const existing = JSON.parse(localStorage.getItem(table) || '[]');
+      const newData = Array.isArray(data) ? data : [data];
+      const withIds = newData.map(item => ({
+        ...item,
+        id: item.id || `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      }));
+      
+      const updated = [...existing, ...withIds];
+      localStorage.setItem(table, JSON.stringify(updated));
+      console.log(`LocalStorage Insert ${table}:`, withIds);
+      return withIds;
+    } catch (error) {
+      console.error(`LocalStorage Insert Error for ${table}:`, error);
+      throw error;
+    }
   }
 
   async update(table, data, conditions) {
-    const existing = JSON.parse(localStorage.getItem(table) || '[]');
-    const updated = existing.map(item => {
-      const matches = Object.entries(conditions).every(([key, value]) => item[key] == value);
-      return matches ? { ...item, ...data } : item;
-    });
-    
-    localStorage.setItem(table, JSON.stringify(updated));
-    return updated;
+    try {
+      const existing = JSON.parse(localStorage.getItem(table) || '[]');
+      const updated = existing.map(item => {
+        const matches = Object.entries(conditions).every(([key, value]) => item[key] == value);
+        return matches ? { ...item, ...data } : item;
+      });
+      
+      localStorage.setItem(table, JSON.stringify(updated));
+      console.log(`LocalStorage Update ${table}:`, updated);
+      return updated;
+    } catch (error) {
+      console.error(`LocalStorage Update Error for ${table}:`, error);
+      throw error;
+    }
   }
 
   async delete(table, conditions) {
-    const existing = JSON.parse(localStorage.getItem(table) || '[]');
-    const filtered = existing.filter(item => {
-      return !Object.entries(conditions).every(([key, value]) => item[key] == value);
-    });
-    
-    localStorage.setItem(table, JSON.stringify(filtered));
-    return filtered;
+    try {
+      const existing = JSON.parse(localStorage.getItem(table) || '[]');
+      const filtered = existing.filter(item => {
+        return !Object.entries(conditions).every(([key, value]) => item[key] == value);
+      });
+      
+      localStorage.setItem(table, JSON.stringify(filtered));
+      console.log(`LocalStorage Delete ${table}:`, filtered);
+      return filtered;
+    } catch (error) {
+      console.error(`LocalStorage Delete Error for ${table}:`, error);
+      throw error;
+    }
   }
 }
 
+// Client Supabase migliorato con debug
 class SupabaseClient {
   constructor(url, key) {
     this.url = url;
@@ -62,26 +91,41 @@ class SupabaseClient {
     this.headers = {
       'Content-Type': 'application/json',
       'apikey': key,
-      'Authorization': `Bearer ${key}`,
-      'Prefer': 'return=representation'  // Importante per v52
+      'Authorization': `Bearer ${key}`
     };
+    this.isLocalStorage = false;
+  }
+
+  async testConnection() {
+    try {
+      const response = await fetch(`${this.url}/rest/v1/`, {
+        method: 'GET',
+        headers: this.headers
+      });
+      return response.ok;
+    } catch (error) {
+      console.error('Supabase connection test failed:', error);
+      return false;
+    }
   }
 
   async query(table, options = {}) {
-    let url = `${this.url}/rest/v1/${table}`;
-    const params = new URLSearchParams();
-    
-    if (options.select) params.append('select', options.select);
-    if (options.eq) {
-      Object.entries(options.eq).forEach(([key, value]) => {
-        params.append(key, `eq.${value}`);
-      });
-    }
-    if (options.order) params.append('order', options.order);
-    
-    if (params.toString()) url += `?${params.toString()}`;
-    
     try {
+      let url = `${this.url}/rest/v1/${table}`;
+      const params = new URLSearchParams();
+      
+      if (options.select) params.append('select', options.select);
+      if (options.eq) {
+        Object.entries(options.eq).forEach(([key, value]) => {
+          params.append(key, `eq.${value}`);
+        });
+      }
+      if (options.order) params.append('order', options.order);
+      
+      if (params.toString()) url += `?${params.toString()}`;
+      
+      console.log(`Supabase Query URL: ${url}`);
+      
       const response = await fetch(url, {
         method: 'GET',
         headers: this.headers
@@ -89,50 +133,68 @@ class SupabaseClient {
       
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Query failed: ${response.status} - ${errorText}`);
+        console.error(`Supabase Query Error:`, {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        });
+        throw new Error(`Query failed: ${response.status} ${response.statusText} - ${errorText}`);
       }
-      return response.json();
+      
+      const result = await response.json();
+      console.log(`Supabase Query ${table} Result:`, result);
+      return result;
     } catch (error) {
-      console.error('Supabase query error:', error);
+      console.error(`Supabase Query Error for ${table}:`, error);
       throw error;
     }
   }
 
   async insert(table, data) {
     try {
+      console.log(`Supabase Insert ${table}:`, data);
+      
       const response = await fetch(`${this.url}/rest/v1/${table}`, {
         method: 'POST',
         headers: {
           ...this.headers,
           'Prefer': 'return=representation'
         },
-        body: JSON.stringify(Array.isArray(data) ? data : [data])
+        body: JSON.stringify(data)
       });
       
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Insert failed: ${response.status} - ${errorText}`);
+        console.error(`Supabase Insert Error:`, {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        });
+        throw new Error(`Insert failed: ${response.status} ${response.statusText} - ${errorText}`);
       }
       
       const result = await response.json();
-      return Array.isArray(data) ? result : result[0];
+      console.log(`Supabase Insert ${table} Result:`, result);
+      return result;
     } catch (error) {
-      console.error('Supabase insert error:', error);
+      console.error(`Supabase Insert Error for ${table}:`, error);
       throw error;
     }
   }
 
   async update(table, data, conditions) {
-    let url = `${this.url}/rest/v1/${table}`;
-    const params = new URLSearchParams();
-    
-    Object.entries(conditions).forEach(([key, value]) => {
-      params.append(key, `eq.${value}`);
-    });
-    
-    url += `?${params.toString()}`;
-    
     try {
+      let url = `${this.url}/rest/v1/${table}`;
+      const params = new URLSearchParams();
+      
+      Object.entries(conditions).forEach(([key, value]) => {
+        params.append(key, `eq.${value}`);
+      });
+      
+      url += `?${params.toString()}`;
+      
+      console.log(`Supabase Update ${table}:`, { url, data });
+      
       const response = await fetch(url, {
         method: 'PATCH',
         headers: {
@@ -144,26 +206,36 @@ class SupabaseClient {
       
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Update failed: ${response.status} - ${errorText}`);
+        console.error(`Supabase Update Error:`, {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        });
+        throw new Error(`Update failed: ${response.status} ${response.statusText} - ${errorText}`);
       }
-      return response.json();
+      
+      const result = await response.json();
+      console.log(`Supabase Update ${table} Result:`, result);
+      return result;
     } catch (error) {
-      console.error('Supabase update error:', error);
+      console.error(`Supabase Update Error for ${table}:`, error);
       throw error;
     }
   }
 
   async delete(table, conditions) {
-    let url = `${this.url}/rest/v1/${table}`;
-    const params = new URLSearchParams();
-    
-    Object.entries(conditions).forEach(([key, value]) => {
-      params.append(key, `eq.${value}`);
-    });
-    
-    url += `?${params.toString()}`;
-    
     try {
+      let url = `${this.url}/rest/v1/${table}`;
+      const params = new URLSearchParams();
+      
+      Object.entries(conditions).forEach(([key, value]) => {
+        params.append(key, `eq.${value}`);
+      });
+      
+      url += `?${params.toString()}`;
+      
+      console.log(`Supabase Delete ${table}:`, url);
+      
       const response = await fetch(url, {
         method: 'DELETE',
         headers: this.headers
@@ -171,50 +243,24 @@ class SupabaseClient {
       
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Delete failed: ${response.status} - ${errorText}`);
+        console.error(`Supabase Delete Error:`, {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        });
+        throw new Error(`Delete failed: ${response.status} ${response.statusText} - ${errorText}`);
       }
-      return response.json();
+      
+      console.log(`Supabase Delete ${table} Success`);
+      return [];
     } catch (error) {
-      console.error('Supabase delete error:', error);
+      console.error(`Supabase Delete Error for ${table}:`, error);
       throw error;
     }
   }
 }
 
 const ScoutPaymentApp = () => {
-  const ScoutPaymentApp = () => {
-  // TEST CONNESSIONE DATABASE
-  const testDatabase = async () => {
-    console.log('🧪 Test connessione database...');
-    try {
-      const testData = {
-        name: 'Test Gruppo',
-        access_code: 'TEST123',
-        created_at: new Date().toISOString()
-      };
-      
-      console.log('📤 Tentativo inserimento:', testData);
-      const result = await db.insert('groups', testData);
-      console.log('✅ Test riuscito!', result);
-      
-      // Prova a leggere
-      const groups = await db.query('groups');
-      console.log('📊 Gruppi nel database:', groups);
-      
-    } catch (error) {
-      console.error('❌ Test fallito:', error);
-    }
-  };
-
-  // Esegui test all'avvio (solo per debug)
-  useEffect(() => {
-    if (groupId) {
-      console.log('🧪 Eseguo test database...');
-      testDatabase();
-    }
-  }, []);
-
-  // ... resto del codice esistente
   const [activeTab, setActiveTab] = useState('dashboard');
   const [scouts, setScouts] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -222,8 +268,24 @@ const ScoutPaymentApp = () => {
   const [extraIncomes, setExtraIncomes] = useState([]);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isLoading, setIsLoading] = useState(false);
-  const [groupId, setGroupId] = useState(localStorage.getItem('groupId'));
-  const [groupName, setGroupName] = useState(localStorage.getItem('groupName') || '');
+  const [error, setError] = useState(null);
+  const [debugInfo, setDebugInfo] = useState([]);
+  
+  // Group management
+  const [groupId, setGroupId] = useState(() => {
+    try {
+      return localStorage.getItem('groupId');
+    } catch {
+      return null;
+    }
+  });
+  const [groupName, setGroupName] = useState(() => {
+    try {
+      return localStorage.getItem('groupName') || '';
+    } catch {
+      return '';
+    }
+  });
   const [showGroupSetup, setShowGroupSetup] = useState(!groupId);
   
   // Modals
@@ -232,19 +294,40 @@ const ScoutPaymentApp = () => {
   const [showAddAdvance, setShowAddAdvance] = useState(false);
   const [showAddIncome, setShowAddIncome] = useState(false);
 
-  // Inizializza client database
-  const db = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? new LocalStorageClient() 
-    : new SupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  
-  const [useLocalStorage, setUseLocalStorage] = useState(
-    window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  );
+  // Determine if we should use localStorage
+  const useLocalStorage = useMemo(() => {
+    return window.location.hostname === 'localhost' || 
+           window.location.hostname === '127.0.0.1' ||
+           window.location.hostname.includes('claude.ai');
+  }, []);
 
-  // Monitora connessione
+  // Initialize database client
+  const db = useMemo(() => {
+    const client = useLocalStorage 
+      ? new LocalStorageClient() 
+      : new SupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    addDebugInfo(`Database client initialized: ${useLocalStorage ? 'LocalStorage' : 'Supabase'}`);
+    return client;
+  }, [useLocalStorage]);
+
+  // Debug helper
+  const addDebugInfo = (message) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setDebugInfo(prev => [...prev.slice(-9), `${timestamp}: ${message}`]);
+    console.log(`DEBUG: ${message}`);
+  };
+
+  // Monitor connection
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    const handleOnline = () => {
+      setIsOnline(true);
+      addDebugInfo('Connection restored');
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      addDebugInfo('Connection lost');
+    };
     
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -255,25 +338,56 @@ const ScoutPaymentApp = () => {
     };
   }, []);
 
-  // Carica dati dal database
+  // Test Supabase connection
+  useEffect(() => {
+    if (!useLocalStorage && db) {
+      db.testConnection().then(connected => {
+        addDebugInfo(`Supabase connection test: ${connected ? 'SUCCESS' : 'FAILED'}`);
+      });
+    }
+  }, [db, useLocalStorage]);
+
+  // Load data from database
   const loadData = async () => {
-    if (!groupId) return;
+    if (!groupId) {
+      addDebugInfo('No groupId, skipping data load');
+      return;
+    }
     
     setIsLoading(true);
+    setError(null);
+    addDebugInfo(`Loading data for group: ${groupId}`);
+    
     try {
       const [scoutsData, expensesData, advancesData, incomesData] = await Promise.all([
-        db.query('scouts', { eq: { group_id: groupId } }),
-        db.query('expenses', { eq: { group_id: groupId } }),
-        db.query('advances', { eq: { group_id: groupId } }),
-        db.query('extra_incomes', { eq: { group_id: groupId } })
+        db.query('scouts', { eq: { group_id: groupId } }).catch(e => {
+          addDebugInfo(`Scouts query failed: ${e.message}`);
+          return [];
+        }),
+        db.query('expenses', { eq: { group_id: groupId } }).catch(e => {
+          addDebugInfo(`Expenses query failed: ${e.message}`);
+          return [];
+        }),
+        db.query('advances', { eq: { group_id: groupId } }).catch(e => {
+          addDebugInfo(`Advances query failed: ${e.message}`);
+          return [];
+        }),
+        db.query('extra_incomes', { eq: { group_id: groupId } }).catch(e => {
+          addDebugInfo(`Extra incomes query failed: ${e.message}`);
+          return [];
+        })
       ]);
 
       setScouts(scoutsData || []);
       setExpenses(expensesData || []);
       setAdvances(advancesData || []);
       setExtraIncomes(incomesData || []);
+      
+      addDebugInfo(`Data loaded: ${scoutsData.length} scouts, ${expensesData.length} expenses, ${advancesData.length} advances, ${incomesData.length} incomes`);
     } catch (error) {
-      console.error('Errore caricamento dati:', error);
+      console.error('Error loading data:', error);
+      setError(`Errore caricamento dati: ${error.message}`);
+      addDebugInfo(`Data loading failed: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -283,69 +397,67 @@ const ScoutPaymentApp = () => {
     if (groupId) {
       loadData();
     }
-  }, [groupId]);
+  }, [groupId, db]);
 
-  // Setup gruppo (versione localStorage)
+  // Setup group
   const setupGroup = async (name, code = null) => {
-  setIsLoading(true);
-  
-  try {
-    if (code) {
-      // Unisciti a gruppo esistente
-      console.log('🔍 Cerco gruppo con codice:', code);
-      const groups = await db.query('groups', { eq: { access_code: code } });
-      console.log('📊 Risultato ricerca:', groups);
-      
-      if (!groups || groups.length === 0) {
-        alert('Codice gruppo non valido');
-        setIsLoading(false);
-        return;
+    setIsLoading(true);
+    setError(null);
+    addDebugInfo(`Setting up group: ${code ? 'joining' : 'creating'}`);
+    
+    try {
+      if (code) {
+        // Join existing group
+        const groups = await db.query('groups', { eq: { access_code: code } });
+        if (groups.length === 0) {
+          throw new Error('Codice gruppo non valido');
+        }
+        const group = groups[0];
+        setGroupId(group.id);
+        setGroupName(group.name);
+        localStorage.setItem('groupId', group.id);
+        localStorage.setItem('groupName', group.name);
+        addDebugInfo(`Joined group: ${group.name} (${group.id})`);
+      } else {
+        // Create new group
+        const accessCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+        const groupData = {
+          name,
+          access_code: accessCode,
+          created_at: new Date().toISOString()
+        };
+        
+        const newGroup = await db.insert('groups', groupData);
+        const group = newGroup[0];
+        setGroupId(group.id);
+        setGroupName(group.name);
+        localStorage.setItem('groupId', group.id);
+        localStorage.setItem('groupName', group.name);
+        
+        addDebugInfo(`Created group: ${group.name} (${group.id}) - Code: ${accessCode}`);
+        
+        alert(`Gruppo creato! Codice di accesso: ${accessCode}\n\n${
+          useLocalStorage 
+            ? 'NOTA: In modalità locale, il codice funziona solo su questo browser.' 
+            : 'Condividi questo codice con gli altri capi per accedere al gruppo!'
+        }`);
       }
-      const group = groups[0];
-      setGroupId(group.id);
-      setGroupName(group.name);
-      localStorage.setItem('groupId', group.id);
-      localStorage.setItem('groupName', group.name);
-    } else {
-      // Crea nuovo gruppo
-      const accessCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-      console.log('🆕 Creo nuovo gruppo:', { name, accessCode });
-      
-      const groupData = {
-        name,
-        access_code: accessCode,
-        created_at: new Date().toISOString()
-      };
-      
-      const newGroup = await db.insert('groups', groupData);
-      console.log('✅ Gruppo creato:', newGroup);
-      
-      if (!newGroup) {
-        throw new Error('Errore nella creazione del gruppo');
-      }
-      
-      setGroupId(newGroup.id);
-      setGroupName(newGroup.name);
-      localStorage.setItem('groupId', newGroup.id);
-      localStorage.setItem('groupName', newGroup.name);
-      
-      alert(`Gruppo creato! Codice di accesso: ${accessCode}\n\nCondividi questo codice con gli altri capi per accedere al gruppo!`);
+      setShowGroupSetup(false);
+    } catch (error) {
+      console.error('Group setup error:', error);
+      setError(`Errore durante la configurazione del gruppo: ${error.message}`);
+      addDebugInfo(`Group setup failed: ${error.message}`);
+    } finally {
+      setIsLoading(false);
     }
-    setShowGroupSetup(false);
-  } catch (error) {
-    console.error('❌ Errore setup gruppo:', error);
-    alert(`Errore durante la configurazione del gruppo: ${error.message}`);
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
-  // Calcola i totali finanziari
+  // Calculate financial totals
   const calculateTotals = () => {
     let bankTotal = 0;
     let cashTotal = 0;
     
-    // Somma incassi scout
+    // Sum scout payments
     scouts.forEach(scout => {
       if (scout.payments) {
         scout.payments.forEach(payment => {
@@ -358,7 +470,7 @@ const ScoutPaymentApp = () => {
       }
     });
     
-    // Somma entrate extra
+    // Sum extra incomes
     extraIncomes.forEach(income => {
       if (income.method === 'bonifico') {
         bankTotal += income.amount;
@@ -367,7 +479,7 @@ const ScoutPaymentApp = () => {
       }
     });
     
-    // Sottrai spese
+    // Subtract expenses
     expenses.forEach(expense => {
       if (expense.method === 'bonifico') {
         bankTotal -= expense.amount;
@@ -376,7 +488,7 @@ const ScoutPaymentApp = () => {
       }
     });
     
-    // Sottrai anticipi non rimborsati
+    // Subtract unreimbursed advances
     advances.forEach(advance => {
       if (!advance.reimbursed) {
         if (advance.method === 'bonifico') {
@@ -422,6 +534,8 @@ const ScoutPaymentApp = () => {
 
   // CRUD Operations
   const addScout = async (scoutData) => {
+    addDebugInfo(`Adding scout: ${scoutData.name} ${scoutData.surname}`);
+    
     const newScout = {
       ...scoutData,
       group_id: groupId,
@@ -432,12 +546,17 @@ const ScoutPaymentApp = () => {
       const result = await db.insert('scouts', newScout);
       setScouts([...scouts, { ...result[0], payments: [] }]);
       setShowAddScout(false);
+      addDebugInfo(`Scout added successfully`);
     } catch (error) {
-      console.error('Errore aggiunta scout:', error);
+      console.error('Error adding scout:', error);
+      setError(`Errore aggiunta scout: ${error.message}`);
+      addDebugInfo(`Add scout failed: ${error.message}`);
     }
   };
 
   const addExpense = async (expenseData) => {
+    addDebugInfo(`Adding expense: ${expenseData.description} - €${expenseData.amount}`);
+    
     const expense = {
       ...expenseData,
       group_id: groupId,
@@ -449,12 +568,17 @@ const ScoutPaymentApp = () => {
       const result = await db.insert('expenses', expense);
       setExpenses([...expenses, result[0]]);
       setShowAddExpense(false);
+      addDebugInfo(`Expense added successfully`);
     } catch (error) {
-      console.error('Errore aggiunta spesa:', error);
+      console.error('Error adding expense:', error);
+      setError(`Errore aggiunta spesa: ${error.message}`);
+      addDebugInfo(`Add expense failed: ${error.message}`);
     }
   };
 
   const addExtraIncome = async (incomeData) => {
+    addDebugInfo(`Adding extra income: ${incomeData.description} - €${incomeData.amount}`);
+    
     const income = {
       ...incomeData,
       group_id: groupId,
@@ -466,12 +590,17 @@ const ScoutPaymentApp = () => {
       const result = await db.insert('extra_incomes', income);
       setExtraIncomes([...extraIncomes, result[0]]);
       setShowAddIncome(false);
+      addDebugInfo(`Extra income added successfully`);
     } catch (error) {
-      console.error('Errore aggiunta entrata:', error);
+      console.error('Error adding extra income:', error);
+      setError(`Errore aggiunta entrata: ${error.message}`);
+      addDebugInfo(`Add extra income failed: ${error.message}`);
     }
   };
 
   const addAdvance = async (advanceData) => {
+    addDebugInfo(`Adding advance: ${advanceData.leader} - €${advanceData.amount}`);
+    
     const advance = {
       ...advanceData,
       group_id: groupId,
@@ -484,41 +613,59 @@ const ScoutPaymentApp = () => {
       const result = await db.insert('advances', advance);
       setAdvances([...advances, result[0]]);
       setShowAddAdvance(false);
+      addDebugInfo(`Advance added successfully`);
     } catch (error) {
-      console.error('Errore aggiunta anticipo:', error);
+      console.error('Error adding advance:', error);
+      setError(`Errore aggiunta anticipo: ${error.message}`);
+      addDebugInfo(`Add advance failed: ${error.message}`);
     }
   };
 
   const markAdvanceAsReimbursed = async (advanceId) => {
+    addDebugInfo(`Marking advance as reimbursed: ${advanceId}`);
+    
     try {
       await db.update('advances', { reimbursed: true }, { id: advanceId });
       setAdvances(advances.map(advance => 
         advance.id === advanceId ? { ...advance, reimbursed: true } : advance
       ));
+      addDebugInfo(`Advance reimbursed successfully`);
     } catch (error) {
-      console.error('Errore rimborso anticipo:', error);
+      console.error('Error reimbursing advance:', error);
+      setError(`Errore rimborso anticipo: ${error.message}`);
+      addDebugInfo(`Reimburse advance failed: ${error.message}`);
     }
   };
 
   const deleteExpense = async (expenseId) => {
     if (!window.confirm('Sei sicuro di voler eliminare questa spesa?')) return;
     
+    addDebugInfo(`Deleting expense: ${expenseId}`);
+    
     try {
       await db.delete('expenses', { id: expenseId });
       setExpenses(expenses.filter(expense => expense.id !== expenseId));
+      addDebugInfo(`Expense deleted successfully`);
     } catch (error) {
-      console.error('Errore eliminazione spesa:', error);
+      console.error('Error deleting expense:', error);
+      setError(`Errore eliminazione spesa: ${error.message}`);
+      addDebugInfo(`Delete expense failed: ${error.message}`);
     }
   };
 
   const deleteAdvance = async (advanceId) => {
     if (!window.confirm('Sei sicuro di voler eliminare questo anticipo?')) return;
     
+    addDebugInfo(`Deleting advance: ${advanceId}`);
+    
     try {
       await db.delete('advances', { id: advanceId });
       setAdvances(advances.filter(advance => advance.id !== advanceId));
+      addDebugInfo(`Advance deleted successfully`);
     } catch (error) {
-      console.error('Errore eliminazione anticipo:', error);
+      console.error('Error deleting advance:', error);
+      setError(`Errore eliminazione anticipo: ${error.message}`);
+      addDebugInfo(`Delete advance failed: ${error.message}`);
     }
   };
 
@@ -596,9 +743,35 @@ const ScoutPaymentApp = () => {
     );
   };
 
+  // Debug Panel
+  const DebugPanel = () => (
+    <div className="bg-gray-900 text-green-400 p-4 text-xs font-mono max-h-40 overflow-y-auto">
+      <div className="flex justify-between items-center mb-2">
+        <span className="text-white font-bold">DEBUG LOG</span>
+        <button 
+          onClick={() => setDebugInfo([])}
+          className="text-red-400 hover:text-red-300"
+        >
+          Clear
+        </button>
+      </div>
+      {debugInfo.map((info, index) => (
+        <div key={index} className="mb-1">{info}</div>
+      ))}
+      {debugInfo.length === 0 && (
+        <div className="text-gray-600">No debug messages</div>
+      )}
+    </div>
+  );
+
   // Setup iniziale
   if (showGroupSetup) {
-    return <GroupSetupModal />;
+    return (
+      <div>
+        <GroupSetupModal />
+        <DebugPanel />
+      </div>
+    );
   }
 
   return (
@@ -712,6 +885,16 @@ const ScoutPaymentApp = () => {
           🔄 Operazione in corso...
         </div>
       )}
+
+      {error && (
+        <div className="bg-red-100 border-b border-red-200 px-4 py-2 text-red-800 text-sm flex justify-between items-center">
+          <span>⚠️ {error}</span>
+          <button onClick={() => setError(null)} className="text-red-600 hover:text-red-800">×</button>
+        </div>
+      )}
+
+      {/* Debug Panel */}
+      <DebugPanel />
 
       {/* Content */}
       <div className="p-4">
@@ -852,15 +1035,80 @@ const ScoutPaymentApp = () => {
 
         {/* Altre sezioni */}
         {activeTab === 'scouts' && (
-          <div className="bg-white p-8 rounded-lg shadow-sm border text-center">
-            <h2 className="text-xl font-semibold mb-4">Gestione Scout</h2>
-            <p className="text-gray-600 mb-4">Sezione completa in fase di sviluppo</p>
-            <button
-              onClick={() => setShowAddScout(true)}
-              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-            >
-              Aggiungi Scout
-            </button>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-semibold">Gestione Scout</h2>
+              <button
+                onClick={() => setShowAddScout(true)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center gap-2"
+              >
+                <Plus size={18} />
+                Aggiungi Scout
+              </button>
+            </div>
+
+            <div className="grid gap-4">
+              {scouts.map(scout => {
+                const dues = getScoutDues(scout);
+                return (
+                  <div key={scout.id} className="bg-white p-6 rounded-lg shadow-sm border">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold">{scout.name} {scout.surname}</h3>
+                        <p className="text-sm text-gray-600 mb-2">
+                          {scout.section} {scout.has_siblings && '• Ha fratelli nel gruppo'}
+                        </p>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-600">Quota mensile:</span>
+                            <div className="font-semibold">€{dues.monthlyRate}/mese</div>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Totale dovuto:</span>
+                            <div className="font-semibold">€{dues.totalDue}</div>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Totale pagato:</span>
+                            <div className="font-semibold text-green-600">€{dues.totalPaid}</div>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Rimanente:</span>
+                            <div className={`font-semibold ${dues.remaining > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                              €{Math.abs(dues.remaining).toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+                        {dues.missingMonths.length > 0 && (
+                          <div className="mt-3 p-3 bg-yellow-50 rounded-lg">
+                            <p className="text-sm text-yellow-800">
+                              <strong>Mesi mancanti:</strong> {dues.missingMonths.join(', ')}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      <div className="ml-4">
+                        {dues.remaining <= 0 ? (
+                          <div className="flex items-center gap-2 text-green-600">
+                            <Check size={20} />
+                            <span className="font-semibold">In regola</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-red-600">
+                            <X size={20} />
+                            <span className="font-semibold">Da pagare</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {scouts.length === 0 && (
+                <div className="bg-white p-8 rounded-lg shadow-sm border text-center text-gray-500">
+                  Nessuno scout registrato. Aggiungi il primo scout!
+                </div>
+              )}
+            </div>
           </div>
         )}
 
