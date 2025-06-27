@@ -182,6 +182,39 @@ class SupabaseClient {
 }
 
 const ScoutPaymentApp = () => {
+  const ScoutPaymentApp = () => {
+  // TEST CONNESSIONE DATABASE
+  const testDatabase = async () => {
+    console.log('🧪 Test connessione database...');
+    try {
+      const testData = {
+        name: 'Test Gruppo',
+        access_code: 'TEST123',
+        created_at: new Date().toISOString()
+      };
+      
+      console.log('📤 Tentativo inserimento:', testData);
+      const result = await db.insert('groups', testData);
+      console.log('✅ Test riuscito!', result);
+      
+      // Prova a leggere
+      const groups = await db.query('groups');
+      console.log('📊 Gruppi nel database:', groups);
+      
+    } catch (error) {
+      console.error('❌ Test fallito:', error);
+    }
+  };
+
+  // Esegui test all'avvio (solo per debug)
+  useEffect(() => {
+    if (groupId) {
+      console.log('🧪 Eseguo test database...');
+      testDatabase();
+    }
+  }, []);
+
+  // ... resto del codice esistente
   const [activeTab, setActiveTab] = useState('dashboard');
   const [scouts, setScouts] = useState([]);
   const [expenses, setExpenses] = useState([]);
